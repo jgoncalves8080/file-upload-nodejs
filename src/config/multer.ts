@@ -1,12 +1,13 @@
-import { Request, Express } from 'express';
+import { Request } from 'express';
 import multer, { FileFilterCallback } from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import mime from 'mime-types';
+import multerS3 from 'multer-s3';
+import aws from 'aws-sdk';
 
-export default {
-  dest: path.resolve(__dirname, '..', '..', 'tmp', 'uploads'),
-  storage: multer.diskStorage({
+const storageTypes = {
+  local: multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, path.resolve(__dirname, '..', '..', 'tmp', 'uploads'));
     },
@@ -20,6 +21,26 @@ export default {
       });
     },
   }),
+  s3: multerS3({
+    s3: new aws.S3(),
+    bucket: 'bd-file-upload',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    acl: 'public-read',
+    key: (req, file, cb) => {
+      crypto.randomBytes(16, (err, hash) => {
+        if (err) cb(err, '');
+
+        const fileName = `${hash.toString('hex')}-${file.originalname}`;
+
+        cb(null, fileName);
+      });
+    },
+  }),
+};
+
+export default {
+  dest: path.resolve(__dirname, '..', '..', 'tmp', 'uploads'),
+  storage: storageTypes['s3'],
   limits: {
     fileSize: 2 * 1024 * 1024,
   },
